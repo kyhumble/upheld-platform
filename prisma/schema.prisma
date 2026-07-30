@@ -1,0 +1,355 @@
+// Upheld — Clinical Revenue Integrity Platform
+// Phase 1 Standalone · Free Chart Scan MVP
+// Humble Haus Ventures
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  ADMIN
+  CLINICAL
+  QA
+  EXECUTIVE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  REVOKED
+}
+
+enum ScanType {
+  FREE
+  PILOT
+  FULL
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+enum DocumentType {
+  OASIS
+  ORDERS
+  VISIT_NOTE
+  WOUND
+  F2F
+  CERTIFICATION
+  OTHER
+  UNKNOWN
+}
+
+enum FindingModule {
+  CLINICAL
+  COMPLIANCE
+  REVENUE
+}
+
+enum FindingSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum FindingStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model Agency {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  npi         String?
+  planTier    String   @default("free") // free | pilot | growth | enterprise
+  baaStatus   String   @default("none") // none | pending | signed
+  censusHint  Int?
+  /// CBSA / agency wage index for period payment model (1.0 = national default)
+  wageIndex   Float    @default(1.0)
+  /// Optional ops contact for pilot conversion
+  billingEmail String?
+  phone        String?
+  pilotInterestAt   DateTime?
+  pilotInterestNote String?
+  /// Stripe Checkout session when pilot is paid
+  stripeCustomerId  String?
+  pilotPaidAt       DateTime?
+  pilotCheckoutSessionId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships Membership[]
+  scans       ChartScan[]
+  auditEvents AuditEvent[]
+  pilotLeads  PilotLead[]
+  batchJobs   BatchJob[]
+}
+
+/// Top-of-funnel pilot interest (guest Free Scan or agency CTA)
+model PilotLead {
+  id               String    @id @default(cuid())
+  email            String
+  name             String?
+  agencyName       String?
+  note             String?
+  source           String    @default("unknown")
+  scanToken        String?
+  agencyId         String?
+  readinessScore   Int?
+  revenueAtRisk    Float?
+  revenueUpside    Float?
+  status           String    @default("new") // new | contacted | paid | closed
+  stripeSessionId  String?
+  paidAt           DateTime?
+  metaJson         String    @default("{}")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  agency Agency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+  @@index([stripeSessionId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  scans       ChartScan[]  @relation("ScanCreatedBy")
+  auditEvents AuditEvent[]
+}
+
+model Membership {
+  id        String           @id @default(cuid())
+  userId    String
+  agencyId  String
+  role      MembershipRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agency Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agencyId])
+  @@index([agencyId])
+}
+
+/// One Free Chart Scan / pilot review of a period of care (episode).
+model ChartScan {
+  id                String     @id @default(cuid())
+  publicToken       String     @unique
+  type              ScanType   @default(FREE)
+  status            ScanStatus @default(PENDING)
+
+  agencyId          String?
+  createdById       String?
+
+  // Guest / top-of-funnel capture
+  contactEmail      String?
+  contactName       String?
+  agencyNameHint    String?
+  /// SHA-256 of client IP (rate limits / abuse) — not raw IP
+  clientIpHash      String?
+
+  // Episode reference (tokenized / de-identified preferred)
+  patientLabel      String?
+  clinicianHint     String?
+  periodStartHint   String?
+  periodEndHint     String?
+
+  // Scores (0–100) + financial
+  readinessScore    Int?
+  clinicalScore     Int?
+  complianceScore   Int?
+  revenueScore      Int?
+  revenueAtRisk     Float?
+  /// Upside: undercoding / comorbidity capture if corrected (CMS-scaled advisory)
+  revenueUpside     Float?
+  criticalCount     Int        @default(0)
+  highCount         Int        @default(0)
+  mediumCount       Int        @default(0)
+  lowCount          Int        @default(0)
+
+  summaryJson       String     @default("{}")
+  categoryStatsJson String     @default("{}")
+  errorMessage      String?
+
+  /// End-to-end analysis duration (extract + pipeline + persist), milliseconds
+  durationMs        Int?
+
+  completedAt       DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  agency    Agency?         @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  createdBy User?           @relation("ScanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  documents ChartDocument[]
+  findings  ChartFinding[]
+
+  @@index([agencyId, createdAt])
+  @@index([status, createdAt])
+  @@index([contactEmail])
+  @@index([clientIpHash, createdAt])
+  @@index([type, expiresAt])
+}
+
+model ChartDocument {
+  id            String       @id @default(cuid())
+  scanId        String
+  fileName      String
+  mimeType      String
+  sizeBytes     Int
+  documentType  DocumentType @default(UNKNOWN)
+  /// Extracted / pasted chart text — encrypted at rest when CHART_ENCRYPTION_KEY is set
+  extractedText String       @default("")
+  pageHint      Int?
+  metaJson      String       @default("{}")
+  createdAt     DateTime     @default(now())
+
+  scan ChartScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}
+
+model ChartFinding {
+  id                   String          @id @default(cuid())
+  scanId               String
+  module               FindingModule
+  category             String
+  severity             FindingSeverity
+  status               FindingStatus   @default(OPEN)
+  title                String
+  description          String
+  suggestedCorrection  String
+  cmsReference         String?
+  estimatedImpact      Float?
+  /// RECOVERY | EXPOSURE | NEUTRAL
+  impactType           String          @default("EXPOSURE")
+  evidenceExcerpt      String?
+  sortOrder            Int             @default(0)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  scan ChartScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId, severity])
+  @@index([scanId, module])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  agencyId   String?
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  metaJson   String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  agency Agency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, createdAt])
+  @@index([action, createdAt])
+}
+
+/// Retrospective batch: re-run integrity analysis on already-processed claims
+/// to measure would-have-caught rate for denials / deductions / LUPA.
+model BatchJob {
+  id              String   @id @default(cuid())
+  agencyId        String
+  createdById     String?
+  name            String
+  status          String   @default("PENDING") // PENDING | PROCESSING | COMPLETE | FAILED
+  source          String   @default("upload") // upload | sample | paste
+  itemCount       Int      @default(0)
+  processedCount  Int      @default(0)
+  failedCount     Int      @default(0)
+
+  /// Claims that had a known adverse outcome (denial, partial, LUPA, takeback)
+  adverseCount    Int      @default(0)
+  /// Adverse claims where analyzer produced a matching HIGH/CRITICAL finding
+  caughtCount     Int      @default(0)
+  /// Adverse claims with no matching finding
+  missedCount     Int      @default(0)
+  /// Clean paid claims where analyzer still flagged CRITICAL (false pressure)
+  falsePressureCount Int   @default(0)
+
+  totalProtectUsd Float    @default(0)
+  totalCaptureUsd Float    @default(0)
+  /// Sum of known denial/deduction $ on adverse claims
+  knownLossUsd    Float    @default(0)
+  /// Known loss $ on claims we would have caught
+  recoverableUsd  Float    @default(0)
+
+  summaryJson     String   @default("{}")
+  errorMessage    String?
+  durationMs      Int?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  agency Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  items  BatchItem[]
+
+  @@index([agencyId, createdAt])
+  @@index([status, createdAt])
+}
+
+model BatchItem {
+  id                String   @id @default(cuid())
+  jobId             String
+  claimId           String
+  sortOrder         Int      @default(0)
+  status            String   @default("PENDING") // PENDING | COMPLETE | FAILED
+  fileName          String?
+
+  /// Known post-submission outcome from agency claim history
+  knownOutcome      String   @default("UNKNOWN")
+  // PAID_CLEAN | DENIED | PARTIAL_DENIAL | LUPA | TAKEBACK | ADJUSTMENT | UNKNOWN
+  knownLossUsd      Float?
+  knownReason       String?
+
+  patientLabel      String?
+  readinessScore    Int?
+  revenueAtRisk     Float?
+  revenueUpside     Float?
+  criticalCount     Int      @default(0)
+  highCount         Int      @default(0)
+  findingTitlesJson String   @default("[]")
+  categoryHitsJson  String   @default("[]")
+
+  /// Would analyzer have flagged this before submission?
+  wouldHaveCaught   Boolean?
+  matchReason       String?
+  errorMessage      String?
+
+  chartText         String   @default("")
+  summaryJson       String   @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  job BatchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, sortOrder])
+  @@index([jobId, wouldHaveCaught])
+  @@index([knownOutcome])
+}

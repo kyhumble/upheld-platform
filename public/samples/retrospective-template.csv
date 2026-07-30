@@ -1,0 +1,6 @@
+claimId,outcome,knownLossUsd,knownReason,chartText
+CLM-1001,DENIED,2038,Face-to-face documentation missing,"HOME HEALTH EPISODE — REPLACE WITH DE-IDENTIFIED PACKET TEXT. Include OASIS, orders, F2F, visit notes."
+CLM-1002,LUPA,1100,Low skilled visits,"Replace with episode text showing visit counts and clinical group."
+CLM-1003,PAID_CLEAN,0,,"Strong documentation episode for false-pressure baseline."
+CLM-1004,PARTIAL_DENIAL,450,Comorbidity coding support insufficient,"Packet with weak secondary diagnosis / comorbidity support."
+CLM-1005,TAKEBACK,1800,Homebound status not supported,"Packet with weak homebound narrative."

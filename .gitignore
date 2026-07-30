@@ -1,0 +1,40 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# build
+.next
+out
+dist
+build
+*.tsbuildinfo
+next-env.d.ts
+
+# env (keep examples; never commit real secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
+!.env.production.example
+
+# debug / os
+npm-debug.log*
+.DS_Store
+*.pem
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# uploads (local chart storage)
+uploads/
+.storage/
+
+# vercel
+.vercel
+
+# test
+coverage

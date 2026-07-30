@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: upheld-platform-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: upheld
+      POSTGRES_PASSWORD: upheld
+      POSTGRES_DB: upheld
+    ports:
+      - "5436:5432"
+    volumes:
+      - upheld_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upheld -d upheld"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  upheld_pg_data:

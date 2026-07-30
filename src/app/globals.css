@@ -1,0 +1,357 @@
+@import "tailwindcss";
+
+:root {
+  /* Official Upheld Logo Kit palette */
+  --navy: #052355;
+  --navy-deep: #031536;
+  --teal: #07b4a6;
+  --teal-light: #e6f8f6;
+  --ink: #142033;
+  --muted: #5a6a7a;
+  --border: #e2e8ee;
+  --surface: #f5f7fa;
+  --danger: #b42318;
+  --warn: #b54708;
+  --ok: #027a48;
+  --paper: #fbfbfc;
+  --mist: #f0f3f6;
+}
+
+@theme inline {
+  --color-navy: var(--navy);
+  --color-navy-deep: var(--navy-deep);
+  --color-teal: var(--teal);
+  --color-teal-light: var(--teal-light);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --color-paper: var(--paper);
+  --color-mist: var(--mist);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-display), ui-serif, Georgia, "Times New Roman", serif;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  border-color: var(--border);
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.mkt-grid {
+  background-image:
+    linear-gradient(to right, rgba(12, 35, 64, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(12, 35, 64, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Landing page motion */
+@keyframes mkt-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-14px) scale(1.03);
+  }
+}
+
+@keyframes mkt-pulse-soft {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes mkt-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes mkt-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mkt-ring-draw {
+  from {
+    stroke-dashoffset: 276;
+  }
+  to {
+    stroke-dashoffset: var(--ring-offset, 90);
+  }
+}
+
+@keyframes mkt-scan-line {
+  0% {
+    top: 8%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    top: 88%;
+    opacity: 0;
+  }
+}
+
+@keyframes mkt-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.mkt-float {
+  animation: mkt-float 7s ease-in-out infinite;
+}
+
+.mkt-float-delay {
+  animation: mkt-float 8.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+.mkt-orb {
+  animation: mkt-pulse-soft 5s ease-in-out infinite;
+  filter: blur(48px);
+}
+
+.mkt-fade-up {
+  animation: mkt-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mkt-delay-1 {
+  animation-delay: 0.08s;
+}
+.mkt-delay-2 {
+  animation-delay: 0.16s;
+}
+.mkt-delay-3 {
+  animation-delay: 0.24s;
+}
+.mkt-delay-4 {
+  animation-delay: 0.32s;
+}
+.mkt-delay-5 {
+  animation-delay: 0.4s;
+}
+
+.mkt-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mkt-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mkt-card-lift {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.mkt-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 40px -12px rgba(5, 35, 85, 0.18),
+    0 0 0 1px rgba(7, 180, 166, 0.12);
+  border-color: rgba(7, 180, 166, 0.35);
+}
+
+.mkt-btn-glow {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.mkt-btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px -8px rgba(5, 35, 85, 0.45);
+}
+
+.mkt-btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.18) 45%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: mkt-shimmer 3.5s linear infinite;
+  pointer-events: none;
+}
+
+.mkt-scan-mock {
+  position: relative;
+  overflow: hidden;
+}
+
+.mkt-scan-mock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  animation: mkt-scan-line 3.2s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.mkt-ring-circle {
+  stroke-dasharray: 276;
+  animation: mkt-ring-draw 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.35s;
+}
+
+.mkt-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: mkt-marquee 32s linear infinite;
+}
+
+.mkt-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* In-app page enter */
+@keyframes app-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-page-enter {
+  animation: app-page-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-card-hover {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.app-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -10px rgba(5, 35, 85, 0.12);
+  border-color: rgba(7, 180, 166, 0.28);
+}
+
+.app-stat-pulse {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.app-stat-pulse:hover {
+  background-color: rgba(230, 248, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(7, 180, 166, 0.2);
+}
+
+/* Marketing header polish */
+.mkt-header-link {
+  position: relative;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.mkt-header-link::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--teal);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.mkt-header-link:hover::after,
+.mkt-header-link[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-float,
+  .mkt-float-delay,
+  .mkt-orb,
+  .mkt-fade-up,
+  .mkt-btn-glow::after,
+  .mkt-scan-mock::before,
+  .mkt-ring-circle,
+  .mkt-marquee-track,
+  .app-page-enter {
+    animation: none !important;
+  }
+
+  .mkt-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .mkt-card-lift:hover,
+  .app-card-hover:hover {
+    transform: none;
+  }
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+}
