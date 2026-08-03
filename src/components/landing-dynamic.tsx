@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CONTACT_EMAIL, contactMailto } from "@/lib/contact";
 import { PublicPilotForm } from "@/components/public-pilot-form";
+import { ProductHuntBadge } from "@/components/product-hunt-badge";
 
 function Reveal({
   children,
@@ -296,6 +297,9 @@ export function LandingDynamic() {
                 No credit card · Works with a sample chart or your own de-identified packet · Takes a
                 few minutes
               </p>
+              <div className="mkt-fade-up mkt-delay-5 mt-6 flex justify-center lg:justify-start">
+                <ProductHuntBadge />
+              </div>
             </div>
 
             <div className="mkt-fade-up mkt-delay-3 mkt-float relative">
@@ -760,7 +764,10 @@ export function LandingDynamic() {
 
       <footer className="border-t border-border bg-paper py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 text-[12px] text-muted sm:flex-row">
-          <p>© {year} Humble Haus Ventures · Upheld</p>
+          <div className="flex flex-col items-center gap-3 sm:items-start">
+            <p>© {year} Humble Haus Ventures · Upheld</p>
+            <ProductHuntBadge />
+          </div>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
             <Link href="/scan" className="hover:text-navy">
               Free scan
