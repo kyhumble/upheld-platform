@@ -204,10 +204,27 @@ export function SendToFieldForm({
             ? "Sending…"
             : `Email ${selected.size} item${selected.size === 1 ? "" : "s"} to nurse`}
         </Button>
-        {state.error ? <p className="text-xs text-danger">{state.error}</p> : null}
+        {state.error ? (
+          <div className="rounded-lg border border-danger/30 bg-red-50 px-3 py-2 text-xs text-danger">
+            <p className="font-semibold">Email not delivered</p>
+            <p className="mt-1">{state.error}</p>
+            <p className="mt-1 text-muted">
+              Check spam, or confirm Resend is working in the{" "}
+              <a
+                href="https://resend.com/emails"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-teal hover:underline"
+              >
+                Resend dashboard
+              </a>
+              .
+            </p>
+          </div>
+        ) : null}
         <p className="text-[11px] text-muted">
           Nurse receives a plain-language fix list. Reply-to is your account email when signed in,
-          so they can respond to QA directly.
+          so they can respond to QA directly. Check spam if nothing arrives within a minute.
         </p>
       </form>
     </Card>

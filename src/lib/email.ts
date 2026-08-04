@@ -322,6 +322,15 @@ export async function sendEmail(params: {
   }
 
   try {
+    // Avoid invalid reply_to values that cause Resend to reject the whole send
+    const replyTo =
+      params.replyTo &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.replyTo) &&
+      !params.replyTo.endsWith("@guest.getupheld.com") &&
+      !params.replyTo.endsWith("@demo.local")
+        ? params.replyTo
+        : undefined;
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -334,14 +343,31 @@ export async function sendEmail(params: {
         subject: params.subject,
         text: params.text,
         html: params.html,
-        ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      return { ok: false, mode: "resend", error: `Resend ${res.status}: ${body.slice(0, 200)}` };
+      let detail = body.slice(0, 280);
+      try {
+        const j = JSON.parse(body) as { message?: string };
+        if (j.message) detail = j.message;
+      } catch {
+        /* keep raw */
+      }
+      // Friendlier common failures
+      if (/api key is invalid/i.test(detail)) {
+        detail =
+          "Email service API key is invalid — update RESEND_API_KEY in Vercel production.";
+      } else if (/only send testing emails/i.test(detail) || /verify a domain/i.test(detail)) {
+        detail =
+          "Resend domain not verified for this From address, or recipient not allowed in test mode.";
+      }
+      console.error("[email] Resend failed", { status: res.status, detail, to: params.to, from });
+      return { ok: false, mode: "resend", error: detail };
     }
     const data = (await res.json()) as { id?: string };
+    console.info("[email] Resend sent", { id: data.id, to: params.to });
     return { ok: true, mode: "resend", id: data.id };
   } catch (e) {
     return {
