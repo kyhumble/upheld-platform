@@ -11,7 +11,11 @@ import { classifyDocumentText } from "@/domain/chart-scan/classify";
 import { extractTextFromUpload } from "@/domain/chart-scan/extract";
 import { runChartScanPipeline, type PipelineResult } from "@/domain/chart-scan/pipeline";
 import { getSampleChart, type SampleChartId } from "@/domain/chart-scan/sample-chart";
-import { buildScanReportEmail, sendEmail } from "@/lib/email";
+import {
+  buildFieldNurseHandoffEmail,
+  buildScanReportEmail,
+  sendEmail,
+} from "@/lib/email";
 import { assertFreeScanAllowed } from "@/lib/rate-limit";
 import { encryptField } from "@/lib/crypto";
 import { readinessFromFindings } from "@/domain/chart-scan/readiness-path";
@@ -724,4 +728,125 @@ export async function emailScanReportAction(
 
   if (!result.ok) return { error: result.error ?? "Email failed", mode: result.mode };
   return { ok: true, mode: result.mode };
+}
+
+export type FieldHandoffState = { ok?: boolean; error?: string; sentCount?: number };
+
+/**
+ * QA / reviewer sends open findings to a field nurse for chart corrections.
+ * Emails the nurse a task list + report link; reply-to is the QA address when available.
+ */
+export async function sendToFieldNurseAction(
+  _prev: FieldHandoffState,
+  formData: FormData,
+): Promise<FieldHandoffState> {
+  const session = await getValidSession();
+  const scanToken = String(formData.get("scanToken") ?? "").trim();
+  const nurseEmail = String(formData.get("nurseEmail") ?? "").trim().toLowerCase();
+  const nurseName = String(formData.get("nurseName") ?? "").trim() || null;
+  const qaNote = String(formData.get("qaNote") ?? "").trim() || null;
+  const findingIdsRaw = String(formData.get("findingIds") ?? "").trim();
+  const sendAllOpen = formData.get("sendAllOpen") === "1";
+
+  if (!scanToken) return { error: "Report token missing." };
+  if (!nurseEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nurseEmail)) {
+    return { error: "Enter a valid field nurse email." };
+  }
+
+  const scan = await prisma.chartScan.findUnique({
+    where: { publicToken: scanToken },
+    include: {
+      findings: {
+        where: { status: "OPEN" },
+        orderBy: [{ sortOrder: "asc" }],
+      },
+      agency: { select: { name: true } },
+    },
+  });
+  if (!scan || scan.status !== "COMPLETE") {
+    return { error: "Report not found or not ready." };
+  }
+
+  // Agency members may send; public token allows Free Scan handoff too
+  if (scan.agencyId && session && session.agencyId !== scan.agencyId) {
+    return { error: "Not authorized for this report." };
+  }
+
+  let selected = scan.findings;
+  if (!sendAllOpen && findingIdsRaw) {
+    const idSet = new Set(
+      findingIdsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+    selected = scan.findings.filter((f) => idSet.has(f.id));
+  }
+  if (selected.length === 0) {
+    return { error: "Select at least one open finding, or send all open items." };
+  }
+
+  const appBase = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
+  const reportUrl = `${appBase}/scan/${scan.publicToken}#findings&status=OPEN`;
+
+  const payload = buildFieldNurseHandoffEmail({
+    nurseName,
+    nurseEmail,
+    qaName: session?.name ?? scan.contactName,
+    qaEmail: session?.email ?? scan.contactEmail,
+    agencyName: scan.agency?.name ?? scan.agencyNameHint,
+    patientLabel: scan.patientLabel,
+    clinicianHint: scan.clinicianHint,
+    readinessScore: scan.readinessScore,
+    note: qaNote,
+    reportUrl,
+    findings: selected.map((f) => ({
+      severity: f.severity,
+      module: f.module,
+      title: f.title,
+      suggestedCorrection: f.suggestedCorrection,
+      impactType: f.impactType,
+      estimatedImpact: f.estimatedImpact,
+      category: f.category,
+    })),
+  });
+
+  const replyTo = session?.email ?? scan.contactEmail ?? undefined;
+
+  const result = await sendEmail({
+    to: nurseEmail,
+    subject: payload.subject,
+    text: payload.text,
+    html: payload.html,
+    replyTo: replyTo || undefined,
+  });
+
+  await writeAudit({
+    agencyId: scan.agencyId,
+    userId: session?.userId ?? scan.createdById,
+    action: result.ok ? "finding.sent_to_field" : "finding.sent_to_field_failed",
+    entityType: "ChartScan",
+    entityId: scan.id,
+    meta: {
+      nurseEmail,
+      nurseName,
+      findingCount: selected.length,
+      findingIds: selected.map((f) => f.id),
+      mode: result.mode,
+      id: result.id,
+      error: result.error,
+      qaNote: qaNote?.slice(0, 400),
+    },
+  });
+
+  if (!result.ok) {
+    return { error: result.error ?? "Failed to email the field nurse. Try again." };
+  }
+
+  revalidatePath(`/scan/${scan.publicToken}`);
+  revalidatePath("/activity");
+  return { ok: true, sentCount: selected.length };
 }

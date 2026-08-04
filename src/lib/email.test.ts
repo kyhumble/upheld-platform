@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFieldNurseHandoffEmail,
   buildPilotConfirmationEmail,
   buildPilotLeadNotifyEmail,
   buildScanReportEmail,
@@ -53,5 +54,33 @@ describe("email templates", () => {
     });
     expect(e.subject).toMatch(/Pilot lead/);
     expect(e.text).toContain("qa@agency.com");
+  });
+
+  it("field nurse handoff lists corrections and report link", () => {
+    const e = buildFieldNurseHandoffEmail({
+      nurseName: "Sam Rivera",
+      nurseEmail: "sam@agency.com",
+      qaName: "Jordan Miles",
+      agencyName: "Summit HH",
+      patientLabel: "Demo Patient A",
+      readinessScore: 55,
+      note: "Please fix before Friday.",
+      reportUrl: "https://www.getupheld.com/scan/tok123",
+      findings: [
+        {
+          severity: "CRITICAL",
+          module: "COMPLIANCE",
+          title: "Face-to-face incomplete",
+          suggestedCorrection: "Obtain physician F2F with date and signature.",
+          impactType: "EXPOSURE",
+          estimatedImpact: 900,
+        },
+      ],
+    });
+    expect(e.subject).toMatch(/corrections/i);
+    expect(e.text).toContain("Sam Rivera");
+    expect(e.text).toContain("Face-to-face incomplete");
+    expect(e.text).toContain("tok123");
+    expect(e.html).toMatch(/What to fix/i);
   });
 });

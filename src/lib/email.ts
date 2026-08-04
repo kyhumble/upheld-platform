@@ -199,6 +199,109 @@ Report: ${reportUrl ?? "—"}
   return { subject, text, html };
 }
 
+export type FieldNurseFindingLine = {
+  severity: string;
+  module: string;
+  title: string;
+  suggestedCorrection: string;
+  impactType?: string | null;
+  estimatedImpact?: number | null;
+  category?: string | null;
+};
+
+/** QA → field nurse correction handoff */
+export function buildFieldNurseHandoffEmail(params: {
+  nurseName?: string | null;
+  nurseEmail: string;
+  qaName?: string | null;
+  qaEmail?: string | null;
+  agencyName?: string | null;
+  patientLabel?: string | null;
+  clinicianHint?: string | null;
+  readinessScore?: number | null;
+  note?: string | null;
+  reportUrl: string;
+  findings: FieldNurseFindingLine[];
+}): { subject: string; text: string; html: string } {
+  const nurse = params.nurseName?.trim() || "there";
+  const episode = params.patientLabel?.trim() || "episode packet";
+  const agency = params.agencyName?.trim() || "your agency";
+  const qa = params.qaName?.trim() || "QA";
+  const subject = `Chart corrections needed · ${episode} · ${agency}`;
+
+  const lines = params.findings.map((f, i) => {
+    const moneyBit =
+      f.estimatedImpact != null && f.estimatedImpact > 0
+        ? ` · ${f.impactType === "RECOVERY" ? "Capture" : "Protect"} ${money(f.estimatedImpact)}`
+        : "";
+    return `${i + 1}. [${f.severity}] ${f.title}${moneyBit}
+   Fix: ${f.suggestedCorrection}`;
+  });
+
+  const text = `Hi ${nurse},
+
+${qa} reviewed a Clinical Revenue Integrity scan and needs documentation corrections before submission.
+
+Episode: ${episode}
+${params.clinicianHint ? `Clinician: ${params.clinicianHint}\n` : ""}Agency: ${agency}
+Readiness: ${params.readinessScore != null ? `${params.readinessScore}/100` : "—"}
+Open findings to correct: ${params.findings.length}
+
+${params.note?.trim() ? `Note from QA:\n${params.note.trim()}\n\n` : ""}Priority corrections:
+${lines.join("\n\n")}
+
+Open the full report (with all findings and evidence):
+${params.reportUrl}
+
+When fixes are in the chart, reply to this email or notify QA so they can re-review and mark items resolved.
+
+— Upheld · Clinical Revenue Integrity
+Questions for Upheld: ${CONTACT_EMAIL}
+`;
+
+  const findingHtml = params.findings
+    .map((f, i) => {
+      const moneyBit =
+        f.estimatedImpact != null && f.estimatedImpact > 0
+          ? ` · <strong>${f.impactType === "RECOVERY" ? "Capture" : "Protect"} ${money(f.estimatedImpact)}</strong>`
+          : "";
+      return `<div style="border:1px solid #e2e8ee;border-radius:10px;padding:14px 16px;margin:0 0 12px;background:#fff">
+  <p style="margin:0 0 6px;font-size:12px;color:#5a6a7a"><strong style="color:#052355">#${i + 1}</strong> · ${escapeHtml(f.severity)} · ${escapeHtml(f.module)}${moneyBit}</p>
+  <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#052355">${escapeHtml(f.title)}</p>
+  <p style="margin:0;font-size:12px;color:#07B4A6;font-weight:600;text-transform:uppercase;letter-spacing:.06em">What to fix</p>
+  <p style="margin:4px 0 0;font-size:14px;color:#142033;line-height:1.5">${escapeHtml(f.suggestedCorrection)}</p>
+</div>`;
+    })
+    .join("");
+
+  const html = `
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:600px;color:#142033">
+    <p style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#07B4A6;font-weight:600">Upheld · Field correction request</p>
+    <h1 style="font-size:22px;color:#052355;margin:8px 0 16px">Chart corrections needed</h1>
+    <p>Hi ${escapeHtml(nurse)},</p>
+    <p><strong>${escapeHtml(qa)}</strong> reviewed a Clinical Revenue Integrity scan and needs documentation updates before submission.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Episode</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(episode)}</td></tr>
+      ${params.clinicianHint ? `<tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Clinician</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(params.clinicianHint)}</td></tr>` : ""}
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Agency</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(agency)}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Readiness</td><td style="padding:8px;border:1px solid #e2e8ee">${params.readinessScore != null ? `${params.readinessScore}/100` : "—"}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Open items</td><td style="padding:8px;border:1px solid #e2e8ee">${params.findings.length}</td></tr>
+    </table>
+    ${
+      params.note?.trim()
+        ? `<div style="background:#e6f8f6;border-radius:10px;padding:12px 14px;margin:0 0 16px"><p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#07B4A6;text-transform:uppercase">Note from QA</p><p style="margin:0;font-size:14px">${escapeHtml(params.note.trim())}</p></div>`
+        : ""
+    }
+    <h2 style="font-size:16px;color:#052355;margin:20px 0 12px">Priority corrections</h2>
+    ${findingHtml}
+    <p style="margin:20px 0"><a href="${params.reportUrl}" style="display:inline-block;background:#052355;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Open full report</a></p>
+    <p style="font-size:13px;color:#5a6a7a">When the chart is updated, reply to this email or notify QA so they can re-review and mark items resolved.</p>
+    <p style="font-size:12px;color:#5a6a7a;margin-top:28px">${CONTACT_EMAIL} · Humble Haus Ventures</p>
+  </div>`;
+
+  return { subject, text, html };
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;

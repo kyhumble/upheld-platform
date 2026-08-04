@@ -18,6 +18,7 @@ import { ShareReportButton } from "./share-report-button";
 import { PrintButton } from "./print-button";
 import { ReadinessPath } from "./readiness-path";
 import { PaymentBreakdown } from "./payment-breakdown";
+import { SendToFieldForm } from "./send-to-field-form";
 import {
   liveScoresFromFindings,
   READINESS_GATE,
@@ -463,6 +464,16 @@ export function ScanReport({
         }
         protect={scan.revenueAtRisk ?? 0}
       />
+
+      {/* QA → field nurse correction handoff */}
+      <div id="send-to-field">
+        <SendToFieldForm
+          scanToken={scan.publicToken}
+          findings={scan.findings}
+          defaultNurseName={scan.clinicianHint ?? ""}
+          defaultNurseEmail=""
+        />
+      </div>
 
       <FindingsPanel
         findings={scan.findings}

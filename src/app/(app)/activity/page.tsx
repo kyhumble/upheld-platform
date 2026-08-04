@@ -13,6 +13,8 @@ const ACTION_LABELS: Record<string, string> = {
   "pilot.interest": "Pilot interest recorded",
   "pilot.checkout_started": "Pilot checkout started",
   "pilot.paid": "Pilot payment received",
+  "finding.sent_to_field": "Findings sent to field nurse",
+  "finding.sent_to_field_failed": "Field nurse email failed",
   "batch.started": "Retrospective batch started",
   "batch.complete": "Retrospective batch completed",
   "ops.purge_expired_free_scans": "Expired free scans purged",
