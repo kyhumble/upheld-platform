@@ -5,6 +5,12 @@ import { Card, CardHeader, Badge, Stat } from "@/components/ui";
 import { AgencySettingsForm, PilotRequestForm } from "@/components/agency-forms";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { CmsRateCard } from "@/components/cms-rate-card";
+import {
+  InviteTeammateForm,
+  MemberRoleForm,
+  RevokeInviteButton,
+  RevokeMemberButton,
+} from "@/components/team-forms";
 import { formatDate } from "@/lib/utils";
 import { isStripePilotEnabled } from "@/lib/stripe";
 
@@ -18,8 +24,9 @@ export default async function SettingsPage() {
   if (!agency) return null;
 
   const canEdit = session.role === "ADMIN" || session.role === "EXECUTIVE";
+  const isAdmin = session.role === "ADMIN";
 
-  const [scanCount, openIssues, pilotEvents, members] = await Promise.all([
+  const [scanCount, openIssues, pilotEvents, members, pendingInvites] = await Promise.all([
     prisma.chartScan.count({ where: { agencyId: session.agencyId } }),
     prisma.chartFinding.count({
       where: { status: "OPEN", scan: { agencyId: session.agencyId, status: "COMPLETE" } },
@@ -29,8 +36,17 @@ export default async function SettingsPage() {
     }),
     prisma.membership.findMany({
       where: { agencyId: session.agencyId, status: "ACTIVE" },
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.agencyInvite.findMany({
+      where: {
+        agencyId: session.agencyId,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -42,7 +58,7 @@ export default async function SettingsPage() {
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-navy">Settings</h1>
         <p className="mt-1 text-sm text-muted">
-          Profile, BAA posture, and pilot conversion · signed in as {session.role}
+          Profile, team, BAA posture, and pilot conversion · signed in as {session.role}
         </p>
       </div>
 
@@ -125,25 +141,77 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader
           title="Team"
-          subtitle={`${members.length} active member${members.length === 1 ? "" : "s"} · seed / admin invites via DB for now`}
+          subtitle={`${members.length} active · ${pendingInvites.length} pending invite${pendingInvites.length === 1 ? "" : "s"} · each person only sees this agency’s data`}
         />
         <div className="divide-y divide-border">
-          {members.map((m) => (
-            <div
-              key={m.id}
-              className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
-            >
-              <div>
-                <p className="font-medium text-navy">{m.user.name}</p>
-                <p className="text-xs text-muted">{m.user.email}</p>
+          {members.map((m) => {
+            const isYou = m.userId === session.userId;
+            return (
+              <div
+                key={m.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-navy">
+                    {m.user.name}
+                    {isYou ? (
+                      <span className="ml-2 text-[11px] font-semibold text-teal">you</span>
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-muted">{m.user.email}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isAdmin && !isYou ? (
+                    <MemberRoleForm membershipId={m.id} currentRole={m.role} />
+                  ) : (
+                    <Badge tone={m.role === "ADMIN" ? "navy" : "neutral"}>{m.role}</Badge>
+                  )}
+                  {isAdmin && !isYou ? (
+                    <RevokeMemberButton membershipId={m.id} label={m.user.name} />
+                  ) : null}
+                </div>
               </div>
-              <Badge tone={m.role === "ADMIN" ? "navy" : "neutral"}>{m.role}</Badge>
-            </div>
-          ))}
+            );
+          })}
           {members.length === 0 ? (
             <p className="px-5 py-6 text-center text-sm text-muted">No active members.</p>
           ) : null}
         </div>
+
+        {pendingInvites.length > 0 ? (
+          <div className="border-t border-border">
+            <p className="px-5 pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Pending invites
+            </p>
+            <div className="divide-y divide-border">
+              {pendingInvites.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-navy">{inv.name || inv.email}</p>
+                    <p className="text-xs text-muted">
+                      {inv.email} · {inv.role} · expires {formatDate(inv.expiresAt)}
+                    </p>
+                  </div>
+                  {isAdmin ? <RevokeInviteButton inviteId={inv.id} /> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {isAdmin ? (
+          <div className="border-t border-border px-5 py-4">
+            <p className="mb-3 text-sm font-semibold text-navy">Invite teammate</p>
+            <InviteTeammateForm />
+          </div>
+        ) : (
+          <p className="border-t border-border px-5 py-4 text-xs text-muted">
+            Only Admins can invite or remove teammates. Ask an Admin if you need another seat.
+          </p>
+        )}
       </Card>
 
       <Card>

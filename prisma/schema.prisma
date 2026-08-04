@@ -90,10 +90,32 @@ model Agency {
   updatedAt   DateTime @updatedAt
 
   memberships Membership[]
+  invites     AgencyInvite[]
   scans       ChartScan[]
   auditEvents AuditEvent[]
   pilotLeads  PilotLead[]
   batchJobs   BatchJob[]
+}
+
+/// Pending teammate invite (multi-user agency)
+model AgencyInvite {
+  id          String         @id @default(cuid())
+  agencyId    String
+  email       String
+  name        String?
+  role        MembershipRole @default(QA)
+  token       String         @unique
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, email])
+  @@index([email, createdAt])
+  @@index([expiresAt])
 }
 
 /// Top-of-funnel pilot interest (guest Free Scan or agency CTA)

@@ -340,6 +340,52 @@ export function wrapTransactionalHtml(inner: string): string {
 </html>`;
 }
 
+/** Invite teammate to multi-user agency */
+export function buildAgencyInviteEmail(params: {
+  to: string;
+  inviteeName?: string | null;
+  inviterName?: string | null;
+  agencyName: string;
+  role: string;
+  inviteUrl: string;
+  expiresAt: Date;
+}): { subject: string; text: string; html: string } {
+  const name = params.inviteeName?.trim() || "there";
+  const inviter = params.inviterName?.trim() || "A teammate";
+  const subject = `You're invited to ${params.agencyName} on Upheld`;
+  const expires = params.expiresAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  const text = `Hi ${name},
+
+${inviter} invited you to join ${params.agencyName} on Upheld (Clinical Revenue Integrity) as ${params.role}.
+
+Accept your invite and set a password:
+${params.inviteUrl}
+
+This link expires on ${expires}.
+
+If you did not expect this, you can ignore this email.
+
+— Upheld · Humble Haus Ventures
+${CONTACT_EMAIL}
+`;
+
+  const html = `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#07B4A6;letter-spacing:0.04em;text-transform:uppercase">Team invite</p>
+    <h1 style="font-size:20px;color:#052355;margin:0 0 16px;font-weight:600">Join ${escapeHtml(params.agencyName)} on Upheld</h1>
+    <p style="margin:0 0 12px">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 16px"><strong>${escapeHtml(inviter)}</strong> invited you to join <strong>${escapeHtml(params.agencyName)}</strong> as <strong>${escapeHtml(params.role)}</strong>.</p>
+    <p style="margin:0 0 18px"><a href="${params.inviteUrl}" style="display:inline-block;background:#052355;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:8px;font-weight:600;font-size:14px">Accept invite</a></p>
+    <p style="margin:0;font-size:13px;color:#5a6a7a">Link expires ${escapeHtml(expires)}. If you did not expect this, ignore this email.</p>
+`;
+
+  return { subject, text, html };
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;

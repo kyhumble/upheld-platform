@@ -19,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/sign-in`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/sign-up`, lastModified: now, changeFrequency: "monthly", priority: 0.75 },
     { url: `${base}/pilot`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    // invite links are private tokens — not listed
     { url: `${base}/pilot/success`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
   ];
 }
