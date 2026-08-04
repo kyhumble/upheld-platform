@@ -77,10 +77,10 @@ describe("email templates", () => {
         },
       ],
     });
-    expect(e.subject).toMatch(/corrections/i);
+    expect(e.subject).toMatch(/Documentation review/i);
     expect(e.text).toContain("Sam Rivera");
     expect(e.text).toContain("Face-to-face incomplete");
     expect(e.text).toContain("tok123");
-    expect(e.html).toMatch(/What to fix/i);
+    expect(e.html).toMatch(/Suggested update/i);
   });
 });

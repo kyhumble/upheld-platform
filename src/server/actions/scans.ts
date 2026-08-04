@@ -822,6 +822,10 @@ export async function sendToFieldNurseAction(
     text: payload.text,
     html: payload.html,
     replyTo: replyTo || undefined,
+    tags: [
+      { name: "app", value: "upheld" },
+      { name: "type", value: "field_handoff" },
+    ],
   });
 
   await writeAudit({

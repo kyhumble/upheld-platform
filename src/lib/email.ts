@@ -227,79 +227,117 @@ export function buildFieldNurseHandoffEmail(params: {
   const episode = params.patientLabel?.trim() || "episode packet";
   const agency = params.agencyName?.trim() || "your agency";
   const qa = params.qaName?.trim() || "QA";
-  const subject = `Chart corrections needed · ${episode} · ${agency}`;
+  // Neutral subject (avoid spammy urgency language)
+  const subject = `Documentation review for ${episode}`;
 
   const lines = params.findings.map((f, i) => {
     const moneyBit =
       f.estimatedImpact != null && f.estimatedImpact > 0
-        ? ` · ${f.impactType === "RECOVERY" ? "Capture" : "Protect"} ${money(f.estimatedImpact)}`
+        ? ` (${f.impactType === "RECOVERY" ? "capture" : "protect"} ${money(f.estimatedImpact)})`
         : "";
     return `${i + 1}. [${f.severity}] ${f.title}${moneyBit}
-   Fix: ${f.suggestedCorrection}`;
+   Suggested update: ${f.suggestedCorrection}`;
   });
 
   const text = `Hi ${nurse},
 
-${qa} reviewed a Clinical Revenue Integrity scan and needs documentation corrections before submission.
+${qa} completed a chart integrity review and listed documentation items for your update before claim submission.
 
 Episode: ${episode}
 ${params.clinicianHint ? `Clinician: ${params.clinicianHint}\n` : ""}Agency: ${agency}
-Readiness: ${params.readinessScore != null ? `${params.readinessScore}/100` : "—"}
-Open findings to correct: ${params.findings.length}
+Readiness score: ${params.readinessScore != null ? `${params.readinessScore}/100` : "n/a"}
+Items to address: ${params.findings.length}
 
-${params.note?.trim() ? `Note from QA:\n${params.note.trim()}\n\n` : ""}Priority corrections:
+${params.note?.trim() ? `Message from reviewer:\n${params.note.trim()}\n\n` : ""}Items:
 ${lines.join("\n\n")}
 
-Open the full report (with all findings and evidence):
+Full report (findings and evidence):
 ${params.reportUrl}
 
-When fixes are in the chart, reply to this email or notify QA so they can re-review and mark items resolved.
+When the chart is updated, reply to this message so the reviewer can re-check and close items.
 
-— Upheld · Clinical Revenue Integrity
-Questions for Upheld: ${CONTACT_EMAIL}
+Upheld · Humble Haus Ventures
+${CONTACT_EMAIL}
 `;
 
   const findingHtml = params.findings
     .map((f, i) => {
       const moneyBit =
         f.estimatedImpact != null && f.estimatedImpact > 0
-          ? ` · <strong>${f.impactType === "RECOVERY" ? "Capture" : "Protect"} ${money(f.estimatedImpact)}</strong>`
+          ? ` · ${f.impactType === "RECOVERY" ? "Capture" : "Protect"} ${money(f.estimatedImpact)}`
           : "";
-      return `<div style="border:1px solid #e2e8ee;border-radius:10px;padding:14px 16px;margin:0 0 12px;background:#fff">
-  <p style="margin:0 0 6px;font-size:12px;color:#5a6a7a"><strong style="color:#052355">#${i + 1}</strong> · ${escapeHtml(f.severity)} · ${escapeHtml(f.module)}${moneyBit}</p>
+      return `<div style="border:1px solid #e2e8ee;border-radius:8px;padding:12px 14px;margin:0 0 10px;background:#ffffff">
+  <p style="margin:0 0 4px;font-size:12px;color:#5a6a7a">#${i + 1} · ${escapeHtml(f.severity)} · ${escapeHtml(f.module)}${escapeHtml(moneyBit)}</p>
   <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#052355">${escapeHtml(f.title)}</p>
-  <p style="margin:0;font-size:12px;color:#07B4A6;font-weight:600;text-transform:uppercase;letter-spacing:.06em">What to fix</p>
-  <p style="margin:4px 0 0;font-size:14px;color:#142033;line-height:1.5">${escapeHtml(f.suggestedCorrection)}</p>
+  <p style="margin:0;font-size:12px;color:#5a6a7a;font-weight:600">Suggested update</p>
+  <p style="margin:4px 0 0;font-size:14px;color:#142033">${escapeHtml(f.suggestedCorrection)}</p>
 </div>`;
     })
     .join("");
 
   const html = `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:600px;color:#142033">
-    <p style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#07B4A6;font-weight:600">Upheld · Field correction request</p>
-    <h1 style="font-size:22px;color:#052355;margin:8px 0 16px">Chart corrections needed</h1>
-    <p>Hi ${escapeHtml(nurse)},</p>
-    <p><strong>${escapeHtml(qa)}</strong> reviewed a Clinical Revenue Integrity scan and needs documentation updates before submission.</p>
-    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
-      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Episode</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(episode)}</td></tr>
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#07B4A6;letter-spacing:0.04em;text-transform:uppercase">Chart review</p>
+    <h1 style="font-size:20px;color:#052355;margin:0 0 16px;font-weight:600">Documentation items for update</h1>
+    <p style="margin:0 0 12px">Hi ${escapeHtml(nurse)},</p>
+    <p style="margin:0 0 16px"><strong>${escapeHtml(qa)}</strong> completed a chart integrity review and listed items for your documentation update before claim submission.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:13px" role="presentation">
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a;width:35%">Episode</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(episode)}</td></tr>
       ${params.clinicianHint ? `<tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Clinician</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(params.clinicianHint)}</td></tr>` : ""}
       <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Agency</td><td style="padding:8px;border:1px solid #e2e8ee">${escapeHtml(agency)}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Readiness</td><td style="padding:8px;border:1px solid #e2e8ee">${params.readinessScore != null ? `${params.readinessScore}/100` : "—"}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Open items</td><td style="padding:8px;border:1px solid #e2e8ee">${params.findings.length}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Readiness</td><td style="padding:8px;border:1px solid #e2e8ee">${params.readinessScore != null ? `${params.readinessScore}/100` : "n/a"}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #e2e8ee;background:#fbfbfc;color:#5a6a7a">Items</td><td style="padding:8px;border:1px solid #e2e8ee">${params.findings.length}</td></tr>
     </table>
     ${
       params.note?.trim()
-        ? `<div style="background:#e6f8f6;border-radius:10px;padding:12px 14px;margin:0 0 16px"><p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#07B4A6;text-transform:uppercase">Note from QA</p><p style="margin:0;font-size:14px">${escapeHtml(params.note.trim())}</p></div>`
+        ? `<div style="background:#f0f3f6;border-radius:8px;padding:12px 14px;margin:0 0 16px"><p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#5a6a7a">Message from reviewer</p><p style="margin:0;font-size:14px">${escapeHtml(params.note.trim())}</p></div>`
         : ""
     }
-    <h2 style="font-size:16px;color:#052355;margin:20px 0 12px">Priority corrections</h2>
+    <h2 style="font-size:15px;color:#052355;margin:0 0 10px;font-weight:600">Items to address</h2>
     ${findingHtml}
-    <p style="margin:20px 0"><a href="${params.reportUrl}" style="display:inline-block;background:#052355;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Open full report</a></p>
-    <p style="font-size:13px;color:#5a6a7a">When the chart is updated, reply to this email or notify QA so they can re-review and mark items resolved.</p>
-    <p style="font-size:12px;color:#5a6a7a;margin-top:28px">${CONTACT_EMAIL} · Humble Haus Ventures</p>
-  </div>`;
+    <p style="margin:18px 0"><a href="${params.reportUrl}" style="display:inline-block;background:#052355;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:8px;font-weight:600;font-size:14px">Open report</a></p>
+    <p style="margin:0;font-size:13px;color:#5a6a7a">When the chart is updated, reply to this message so the reviewer can re-check and close items.</p>
+`;
 
   return { subject, text, html };
+}
+
+/** Prefer verified custom domain — never fall back to resend.dev in production. */
+function resolveFromAddress(): string {
+  const configured = process.env.EMAIL_FROM?.trim();
+  if (configured && !/onboarding@resend\.dev/i.test(configured)) {
+    return configured;
+  }
+  return "Upheld <reports@getupheld.com>";
+}
+
+function isSafeReplyTo(email: string | undefined | null): email is string {
+  if (!email) return false;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+  if (email.endsWith("@guest.getupheld.com")) return false;
+  if (email.endsWith("@demo.local")) return false;
+  if (email.endsWith("@resend.dev")) return false;
+  return true;
+}
+
+/**
+ * Wrap HTML in a simple, inbox-friendly shell (less spam-like than heavy marketing HTML).
+ */
+export function wrapTransactionalHtml(inner: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:#142033;line-height:1.5;font-size:15px;">
+    ${inner}
+    <hr style="border:none;border-top:1px solid #e2e8ee;margin:28px 0 16px" />
+    <p style="font-size:11px;color:#5a6a7a;margin:0;line-height:1.45">
+      Upheld · Clinical Revenue Integrity · Humble Haus Ventures<br/>
+      This is a transactional message about a chart review you are involved with.<br/>
+      Contact: <a href="mailto:${CONTACT_EMAIL}" style="color:#07B4A6">${CONTACT_EMAIL}</a>
+    </p>
+  </div>
+</body>
+</html>`;
 }
 
 export async function sendEmail(params: {
@@ -308,9 +346,11 @@ export async function sendEmail(params: {
   text: string;
   html: string;
   replyTo?: string;
+  /** Resend tags for analytics */
+  tags?: { name: string; value: string }[];
 }): Promise<EmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? "Upheld <onboarding@resend.dev>";
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = resolveFromAddress();
 
   if (!apiKey) {
     console.info("[email:log]", {
@@ -322,14 +362,12 @@ export async function sendEmail(params: {
   }
 
   try {
-    // Avoid invalid reply_to values that cause Resend to reject the whole send
-    const replyTo =
-      params.replyTo &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.replyTo) &&
-      !params.replyTo.endsWith("@guest.getupheld.com") &&
-      !params.replyTo.endsWith("@demo.local")
-        ? params.replyTo
-        : undefined;
+    const replyTo = isSafeReplyTo(params.replyTo) ? params.replyTo : undefined;
+
+    // Prefer multipart: solid text + clean HTML reduces junk scoring
+    const html = params.html.includes("<!DOCTYPE")
+      ? params.html
+      : wrapTransactionalHtml(params.html);
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -340,10 +378,16 @@ export async function sendEmail(params: {
       body: JSON.stringify({
         from,
         to: [params.to],
-        subject: params.subject,
+        subject: params.subject.slice(0, 200),
         text: params.text,
-        html: params.html,
+        html,
         ...(replyTo ? { reply_to: replyTo } : {}),
+        // Help providers classify as transactional (not bulk promo)
+        headers: {
+          "X-Entity-Ref-ID": `upheld-${Date.now()}`,
+          Precedence: "auto_reply",
+        },
+        tags: params.tags ?? [{ name: "app", value: "upheld" }],
       }),
     });
     if (!res.ok) {
@@ -355,7 +399,6 @@ export async function sendEmail(params: {
       } catch {
         /* keep raw */
       }
-      // Friendlier common failures
       if (/api key is invalid/i.test(detail)) {
         detail =
           "Email service API key is invalid — update RESEND_API_KEY in Vercel production.";
@@ -367,7 +410,7 @@ export async function sendEmail(params: {
       return { ok: false, mode: "resend", error: detail };
     }
     const data = (await res.json()) as { id?: string };
-    console.info("[email] Resend sent", { id: data.id, to: params.to });
+    console.info("[email] Resend sent", { id: data.id, to: params.to, from });
     return { ok: true, mode: "resend", id: data.id };
   } catch (e) {
     return {
