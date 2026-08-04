@@ -256,18 +256,25 @@ export async function createScanFromTextAction(
     };
   }
 
-  if (!session && !contactEmail) {
+  // Synthetic samples can run without email; custom pastes still need contact for guests
+  if (!session && !contactEmail && !useSample) {
     return { error: "Email is required for free scans so we can associate your report." };
   }
 
   const actors = await resolveScanActors(session);
-  const emailForLimit = contactEmail ?? session?.email ?? null;
+  // Samples: use provided email or a rate-limit bucket so demos always work
+  const emailForLimit =
+    contactEmail ?? session?.email ?? (useSample ? `sample+${sampleId}@guest.getupheld.com` : null);
   const limit = await assertFreeScanAllowed({
     email: emailForLimit,
     agencyId: actors.agencyId,
     authenticatedAgency: Boolean(session && actors.agencyId),
   });
   if (!limit.ok) return { error: limit.error };
+
+  const resolvedEmail = contactEmail ?? session?.email ?? null;
+  // Only email the report when the user gave a real address (not synthetic guest)
+  const shouldEmail = sendReportEmail && Boolean(resolvedEmail);
 
   const publicToken = nanoid(24);
   let scan;
@@ -279,9 +286,9 @@ export async function createScanFromTextAction(
         status: "PROCESSING",
         agencyId: actors.agencyId,
         createdById: actors.createdById,
-        contactEmail: contactEmail ?? session?.email ?? null,
-        contactName: contactName ?? session?.name ?? null,
-        agencyNameHint: agencyNameHint ?? session?.agencyName ?? null,
+        contactEmail: resolvedEmail,
+        contactName: contactName ?? session?.name ?? (useSample ? "Sample guest" : null),
+        agencyNameHint: agencyNameHint ?? session?.agencyName ?? (useSample ? "Demo" : null),
         clientIpHash: limit.ipHash,
         expiresAt: session && actors.agencyId ? null : expiresAt(),
       },
@@ -296,9 +303,9 @@ export async function createScanFromTextAction(
         status: "PROCESSING",
         agencyId: null,
         createdById: null,
-        contactEmail: contactEmail ?? session?.email ?? null,
-        contactName: contactName ?? session?.name ?? null,
-        agencyNameHint: agencyNameHint ?? session?.agencyName ?? null,
+        contactEmail: resolvedEmail,
+        contactName: contactName ?? session?.name ?? (useSample ? "Sample guest" : null),
+        agencyNameHint: agencyNameHint ?? session?.agencyName ?? (useSample ? "Demo" : null),
         clientIpHash: limit.ipHash,
         expiresAt: expiresAt(),
       },
@@ -330,8 +337,9 @@ export async function createScanFromTextAction(
         durationMs,
       },
     });
-    if (sendReportEmail) await maybeEmailReport(scan.id);
+    if (shouldEmail) await maybeEmailReport(scan.id);
   } catch (e) {
+    console.error("createScanFromTextAction analysis failed", e);
     await prisma.chartScan.update({
       where: { id: scan.id },
       data: {
@@ -340,7 +348,12 @@ export async function createScanFromTextAction(
         durationMs: Date.now() - started,
       },
     });
-    return { error: "Analysis failed. Please try again." };
+    return {
+      error:
+        e instanceof Error
+          ? `Analysis failed: ${e.message}`
+          : "Analysis failed. Please try again.",
+    };
   }
 
   revalidatePath("/scans");

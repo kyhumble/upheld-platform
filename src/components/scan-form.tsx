@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   createScanFromTextAction,
   createScanFromUploadAction,
@@ -25,15 +25,38 @@ export function ScanForm({
   const [contactName, setContactName] = useState(defaultName);
   const [contactEmail, setContactEmail] = useState(defaultEmail);
   const [agencyNameHint, setAgencyNameHint] = useState(defaultAgency);
+  const [chartText, setChartText] = useState("");
 
   const [textState, textAction, textPending] = useActionState(createScanFromTextAction, initial);
   const [uploadState, uploadAction, uploadPending] = useActionState(
     createScanFromUploadAction,
     initial,
   );
+  const [samplePending, startSample] = useTransition();
+  const [clientError, setClientError] = useState<string | null>(null);
 
-  const pending = textPending || uploadPending;
-  const error = textState.error || uploadState.error;
+  const pending = textPending || uploadPending || samplePending;
+  const error = clientError || textState.error || uploadState.error;
+
+  function appendContact(fd: FormData) {
+    fd.set("contactName", contactName);
+    fd.set("contactEmail", contactEmail);
+    fd.set("agencyNameHint", agencyNameHint);
+  }
+
+  /** Sample buttons: build FormData explicitly so useSample always reaches the server */
+  function runSample(sampleId: "at-risk" | "strong") {
+    setClientError(null);
+    const fd = new FormData();
+    appendContact(fd);
+    fd.set("useSample", sampleId);
+    fd.set("chartText", "");
+    // Only request email when user provided an address
+    if (contactEmail.trim()) fd.set("sendEmail", "1");
+    startSample(() => {
+      textAction(fd);
+    });
+  }
 
   const analyzingOverlay = pending ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4 backdrop-blur-[2px]">
@@ -78,7 +101,11 @@ export function ScanForm({
     <div className="space-y-6">
       {analyzingOverlay}
       {error ? (
-        <div className="rounded-lg border border-danger/30 bg-red-50 px-4 py-3 text-sm text-danger">
+        <div
+          id="scan-form-error"
+          className="rounded-lg border border-danger/30 bg-red-50 px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </div>
       ) : null}
@@ -97,138 +124,183 @@ export function ScanForm({
       </PageEnter>
 
       <PageEnter delay={1}>
-      <Card className="p-6" hover>
-        <h2 className="text-base font-semibold text-navy">1 · Who should receive this report?</h2>
-        <p className="mt-1 text-sm text-muted">
-          Free scans expire after retention days. Prefer de-identified charts until a BAA is signed.
-          Rate-limited to prevent abuse.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <div>
-            <Label htmlFor="contactName">Your name</Label>
-            <Input
-              id="contactName"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="Jordan Miles"
-              disabled={pending}
-            />
+        <Card className="p-6" hover>
+          <h2 className="text-base font-semibold text-navy">1 · Who should receive this report?</h2>
+          <p className="mt-1 text-sm text-muted">
+            Optional for synthetic samples. Required if you paste/upload your own chart or want the
+            report emailed.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="contactName">Your name</Label>
+              <Input
+                id="contactName"
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Jordan Miles"
+                disabled={pending}
+              />
+            </div>
+            <div>
+              <Label htmlFor="contactEmail">
+                Work email {!isAuthenticated ? "(for custom charts)" : ""}
+              </Label>
+              <Input
+                id="contactEmail"
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="qa@agency.com"
+                disabled={pending}
+              />
+            </div>
+            <div>
+              <Label htmlFor="agencyNameHint">Agency</Label>
+              <Input
+                id="agencyNameHint"
+                value={agencyNameHint}
+                onChange={(e) => setAgencyNameHint(e.target.value)}
+                placeholder="Summit Home Health"
+                disabled={pending}
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="contactEmail">Work email {!isAuthenticated ? "*" : ""}</Label>
-            <Input
-              id="contactEmail"
-              type="email"
-              required={!isAuthenticated}
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder="qa@agency.com"
+        </Card>
+      </PageEnter>
+
+      {/* Prominent sample entry — always works */}
+      <PageEnter delay={2}>
+        <Card className="border-teal/30 bg-teal/5 p-6" hover>
+          <h2 className="text-base font-semibold text-navy">Start with sample data</h2>
+          <p className="mt-1 text-sm text-muted">
+            One click runs a full multi-pass scan on synthetic (no PHI) episodes and opens the
+            interactive report. No email required.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button
+              type="button"
               disabled={pending}
-            />
-          </div>
-          <div>
-            <Label htmlFor="agencyNameHint">Agency</Label>
-            <Input
-              id="agencyNameHint"
-              value={agencyNameHint}
-              onChange={(e) => setAgencyNameHint(e.target.value)}
-              placeholder="Summit Home Health"
+              className="mkt-btn-glow"
+              onClick={() => runSample("at-risk")}
+            >
+              {samplePending ? "Analyzing…" : "Sample: at-risk episode"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               disabled={pending}
-            />
+              onClick={() => runSample("strong")}
+            >
+              {samplePending ? "Analyzing…" : "Sample: strong docs"}
+            </Button>
           </div>
-        </div>
-      </Card>
+        </Card>
       </PageEnter>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <PageEnter delay={2}>
-        <Card className="h-full p-6" hover>
-          <h2 className="text-base font-semibold text-navy">2 · Upload episode packet</h2>
-          <p className="mt-1 text-sm text-muted">
-            PDF, ZIP, or text · max 10 MB. Text-layer PDFs extract immediately; scanned/image PDFs
-            use OCR when available (Azure Document Intelligence).
-          </p>
-          <form action={uploadAction} className="mt-4 space-y-4">
-            {contactFields}
-            <div>
-              <Label htmlFor="file">Chart file</Label>
-              <Input
-                id="file"
-                name="file"
-                type="file"
-                accept=".pdf,.zip,.txt,.md,.csv,text/plain,application/pdf,application/zip"
-                disabled={pending}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="chartTextUpload">Paste fallback (if PDF is image-only)</Label>
-              <Textarea
-                id="chartTextUpload"
-                name="chartText"
-                rows={5}
-                placeholder="Optional: paste OASIS + notes if extraction is thin…"
-                disabled={pending}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-xs text-muted">
-              <input type="checkbox" name="sendEmail" value="1" defaultChecked disabled={pending} />
-              Email report link when complete
-            </label>
-            <Button type="submit" disabled={pending} className="mkt-btn-glow w-full sm:w-auto">
-              {uploadPending ? "Analyzing…" : "Run Free Chart Scan"}
-            </Button>
-          </form>
-        </Card>
+        <PageEnter delay={3}>
+          <Card className="h-full p-6" hover>
+            <h2 className="text-base font-semibold text-navy">2 · Upload episode packet</h2>
+            <p className="mt-1 text-sm text-muted">
+              PDF, ZIP, or text · max 10 MB. Text-layer PDFs extract immediately; scanned/image PDFs
+              use OCR when available (Azure Document Intelligence).
+            </p>
+            <form
+              action={uploadAction}
+              className="mt-4 space-y-4"
+              onSubmit={(e) => {
+                setClientError(null);
+                if (!isAuthenticated && !contactEmail.trim()) {
+                  e.preventDefault();
+                  setClientError("Enter your work email above before uploading a chart.");
+                  document.getElementById("scan-form-error")?.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+            >
+              {contactFields}
+              <div>
+                <Label htmlFor="file">Chart file</Label>
+                <Input
+                  id="file"
+                  name="file"
+                  type="file"
+                  accept=".pdf,.zip,.txt,.md,.csv,text/plain,application/pdf,application/zip"
+                  disabled={pending}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="chartTextUpload">Paste fallback (if PDF is image-only)</Label>
+                <Textarea
+                  id="chartTextUpload"
+                  name="chartText"
+                  rows={5}
+                  placeholder="Optional: paste OASIS + notes if extraction is thin…"
+                  disabled={pending}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  name="sendEmail"
+                  value="1"
+                  defaultChecked
+                  disabled={pending}
+                />
+                Email report link when complete
+              </label>
+              <Button type="submit" disabled={pending} className="mkt-btn-glow w-full sm:w-auto">
+                {uploadPending ? "Analyzing…" : "Run Free Chart Scan"}
+              </Button>
+            </form>
+          </Card>
         </PageEnter>
 
-        <PageEnter delay={3}>
-        <Card className="h-full p-6" hover>
-          <h2 className="text-base font-semibold text-navy">Or paste chart text</h2>
-          <p className="mt-1 text-sm text-muted">
-            Multi-pass Clinical · Compliance · Revenue — readiness, capture $, and protect $.
-          </p>
-          <form action={textAction} className="mt-4 space-y-4">
-            {contactFields}
-            <div>
-              <Label htmlFor="chartText">Episode text</Label>
-              <Textarea
-                id="chartText"
-                name="chartText"
-                rows={12}
-                placeholder="Paste OASIS, orders, F2F, visit notes…"
-                disabled={pending}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-xs text-muted">
-              <input type="checkbox" name="sendEmail" value="1" defaultChecked disabled={pending} />
-              Email report link when complete
-            </label>
-            <div className="flex flex-wrap gap-2">
+        <PageEnter delay={4}>
+          <Card className="h-full p-6" hover>
+            <h2 className="text-base font-semibold text-navy">Or paste chart text</h2>
+            <p className="mt-1 text-sm text-muted">
+              Multi-pass Clinical · Compliance · Revenue — readiness, capture $, and protect $.
+            </p>
+            <form
+              action={textAction}
+              className="mt-4 space-y-4"
+              onSubmit={(e) => {
+                setClientError(null);
+                if (!isAuthenticated && !contactEmail.trim() && chartText.trim().length > 0) {
+                  e.preventDefault();
+                  setClientError("Enter your work email above before analyzing a pasted chart.");
+                }
+              }}
+            >
+              {contactFields}
+              <div>
+                <Label htmlFor="chartText">Episode text</Label>
+                <Textarea
+                  id="chartText"
+                  name="chartText"
+                  rows={12}
+                  value={chartText}
+                  onChange={(e) => setChartText(e.target.value)}
+                  placeholder="Paste OASIS, orders, F2F, visit notes…"
+                  disabled={pending}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  name="sendEmail"
+                  value="1"
+                  defaultChecked
+                  disabled={pending}
+                />
+                Email report link when complete
+              </label>
               <Button type="submit" disabled={pending} className="mkt-btn-glow">
                 {textPending ? "Analyzing…" : "Analyze pasted chart"}
               </Button>
-              <Button
-                type="submit"
-                name="useSample"
-                value="at-risk"
-                variant="secondary"
-                disabled={pending}
-              >
-                Sample: at-risk episode
-              </Button>
-              <Button
-                type="submit"
-                name="useSample"
-                value="strong"
-                variant="secondary"
-                disabled={pending}
-              >
-                Sample: strong docs
-              </Button>
-            </div>
-          </form>
-        </Card>
+            </form>
+          </Card>
         </PageEnter>
       </div>
 
